@@ -1,0 +1,62 @@
+---
+title: "Course Project - Practical Machine Learning"
+author: "Dirceu Pereira Tiegs"
+output: html_document
+---
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The goal of this project is to predict the manner in which they did the exercise. To do that, first we have to load the necessary libraries and download the data (if needed):
+
+```{r cache=TRUE,message=FALSE}
+library(caret)
+set.seed(123)
+if (!file.exists("./pml-training.csv")){
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", "./pml-training.csv", method = "curl")
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", "./pml-testing.csv", method = "curl")
+}
+```
+
+We are going to partition the training dataset into training / testing subsets for cross-validation. First we load the complete dataset:
+
+```{r}
+training.data <- read.csv("./pml-training.csv", na.strings = c("<NA>", "NA", ""))
+summary(training.data$classe)
+```
+
+There are lots of columns with missing values; to simplify our model, we want to use only complete features:
+
+```{r}
+features <- colnames(training.data[colSums(is.na(training.data)) == 0])[-(1:7)]
+training.data <- training.data[features]
+```
+
+Now we partition the training dataset (to be able to cross-validate the model):
+
+```{r}
+inTrain <- createDataPartition(y = training.data$classe, p = 0.7, list = FALSE)
+training <- training.data[inTrain, ]
+testing <- training.data[-inTrain, ]
+```
+
+With the training partition we can train our Random Forest model:
+
+```{r cache=TRUE,message=FALSE}
+model <- train(classe ~ ., method = "rf", data = training)
+```
+
+... and test it with the training and testing subsets:
+
+```{r}
+confusionMatrix(predict(model, newdata=training), training$classe)$overall
+confusionMatrix(predict(model, newdata=testing), testing$classe)$overall
+```
+
+This model can now be used to predict the exercise form using the actual testing dataset:
+
+```{r}
+testing.data <- read.csv("./pml-testing.csv", na.strings = c("<NA>", "NA", ""))
+predict(model, newdata=testing.data)
+```
+
+We estimate the out of sample error of this model to be 0.1% (1 - testing accuracy), so it appears to be an adequate model for prediction.
